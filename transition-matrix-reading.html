@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>轉移矩陣 — 自主閱讀學習</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700&family=Noto+Sans+TC:wght@300;400;500&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --ink: #1a1a2e;
+    --paper: #f5f0e8;
+    --accent: #c0392b;
+    --accent2: #2980b9;
+    --gold: #d4a017;
+    --muted: #6b6b7a;
+    --card: #fffdf7;
+    --border: #d8cfc0;
+    --green: #27ae60;
+    --highlight: #fff3cd;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Noto Sans TC', sans-serif;
+    line-height: 1.9;
+    min-height: 100vh;
+  }
+
+  /* ── 進度條 ── */
+  #progress-bar {
+    position: fixed; top: 0; left: 0; height: 4px;
+    background: linear-gradient(90deg, var(--accent), var(--gold));
+    transition: width 0.4s ease;
+    z-index: 100; width: 0%;
+  }
+
+  /* ── 版面 ── */
+  .page-wrap {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 60px 28px 100px;
+  }
+
+  /* ── 標題區 ── */
+  .hero {
+    text-align: center;
+    padding: 48px 0 56px;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 52px;
+  }
+  .hero .label {
+    font-size: 11px; letter-spacing: 4px; text-transform: uppercase;
+    color: var(--accent); font-weight: 500; margin-bottom: 16px;
+  }
+  .hero h1 {
+    font-family: 'Noto Serif TC', serif;
+    font-size: clamp(2rem, 5vw, 3rem);
+    font-weight: 700; color: var(--ink);
+    line-height: 1.3; margin-bottom: 16px;
+  }
+  .hero .subtitle {
+    color: var(--muted); font-size: 0.95rem;
+    max-width: 440px; margin: 0 auto;
+  }
+
+  /* ── 章節 ── */
+  .section {
+    margin-bottom: 52px;
+    opacity: 0; transform: translateY(20px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .section.visible { opacity: 1; transform: none; }
+  .section-label {
+    font-size: 10px; letter-spacing: 3px; color: var(--accent);
+    font-weight: 600; text-transform: uppercase; margin-bottom: 10px;
+  }
+  .section h2 {
+    font-family: 'Noto Serif TC', serif;
+    font-size: 1.45rem; font-weight: 700;
+    margin-bottom: 18px; color: var(--ink);
+  }
+  .section p { font-size: 1rem; color: #2c2c3a; margin-bottom: 16px; }
+
+  /* ── 情境卡片 ── */
+  .scenario-card {
+    background: var(--card);
+    border: 1.5px solid var(--border);
+    border-left: 5px solid var(--accent2);
+    border-radius: 4px; padding: 24px 28px; margin: 24px 0;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+  }
+  .scenario-card .tag {
+    font-size: 10px; letter-spacing: 2px; color: var(--accent2);
+    font-weight: 600; text-transform: uppercase; margin-bottom: 8px;
+  }
+  .scenario-card p { margin-bottom: 0; }
+
+  /* ── 遷移圖示 ── */
+  .migration-visual {
+    display: flex; align-items: center; justify-content: center;
+    gap: 24px; margin: 32px 0; flex-wrap: wrap;
+  }
+  .city-box {
+    background: var(--card); border: 1.5px solid var(--border);
+    border-radius: 6px; padding: 20px 32px;
+    text-align: center; min-width: 130px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .city-box .city-icon { font-size: 2rem; margin-bottom: 6px; }
+  .city-box .city-name { font-family: 'Noto Serif TC', serif; font-weight: 700; font-size: 1.05rem; }
+  .city-box .city-pop { font-family: 'JetBrains Mono', monospace; color: var(--accent2); font-size: 0.85rem; margin-top: 4px; }
+  .arrows-mid { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .arrow-label { font-size: 0.78rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .arrow-label .pct {
+    font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--ink);
+    background: var(--highlight); padding: 1px 6px; border-radius: 3px;
+  }
+
+  /* ══════════════════════════════
+     ── 矩陣（完全重做，乾淨版）──
+  ══════════════════════════════ */
+  .matrix-reveal {
+    background: var(--card); border: 1.5px solid var(--border);
+    border-radius: 6px; padding: 32px 28px; margin: 28px 0;
+    box-shadow: 0 3px 16px rgba(0,0,0,0.06);
+    overflow-x: auto;
+  }
+  .matrix-title {
+    font-size: 0.85rem; color: var(--muted);
+    margin-bottom: 28px; letter-spacing: 1px; text-align: center;
+  }
+
+  /* 整個矩陣容器：欄標題 + 左側列標題 + 矩陣本體 */
+  .matrix-layout {
+    display: inline-grid;
+    grid-template-columns: auto auto auto; /* 空格 | 欄標 行 | 行 */
+    grid-template-rows: auto auto auto;
+    gap: 0;
+    margin: 0 auto;
+  }
+
+  /* 左上角空白 */
+  .mx-corner { width: 96px; }
+
+  /* 欄標題列 */
+  .mx-col-headers {
+    display: flex; gap: 0;
+  }
+  .mx-col-header {
+    width: 96px; text-align: center;
+    font-size: 0.76rem; color: var(--accent2);
+    font-family: 'Noto Sans TC', sans-serif;
+    font-weight: 600; padding-bottom: 6px;
+    letter-spacing: 0.5px;
+  }
+
+  /* 矩陣主體區（括號 + 列）*/
+  .mx-body {
+    display: flex; align-items: stretch; gap: 0;
+  }
+
+  /* 列標題欄 */
+  .mx-row-headers {
+    display: flex; flex-direction: column;
+    justify-content: space-around;
+    padding-right: 12px; gap: 0;
+  }
+  .mx-row-header {
+    font-size: 0.76rem; color: var(--accent);
+    font-family: 'Noto Sans TC', sans-serif;
+    font-weight: 600; text-align: right;
+    letter-spacing: 0.5px;
+    display: flex; align-items: center; justify-content: flex-end;
+    height: 52px;
+  }
+
+  /* 括號 */
+  .mx-bracket {
+    font-size: 4.2rem; color: #aaa;
+    font-weight: 200; line-height: 1;
+    display: flex; align-items: center;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 0 2px;
+  }
+
+  /* 數值格子 */
+  .mx-cells {
+    display: grid;
+    grid-template-columns: 96px 96px;
+    grid-template-rows: 52px 52px;
+    gap: 0;
+  }
+  .mx-cell {
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.15rem; font-weight: 600;
+    border-radius: 4px; cursor: default;
+    transition: background 0.25s, color 0.25s;
+    position: relative;
+  }
+  .mx-cell:hover { background: var(--highlight); }
+  .mx-cell .cell-tip {
+    display: none; position: absolute;
+    bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    background: var(--ink); color: #f0ece0;
+    font-family: 'Noto Sans TC', sans-serif;
+    font-size: 0.73rem; white-space: nowrap;
+    padding: 5px 10px; border-radius: 4px;
+    pointer-events: none; z-index: 10;
+    letter-spacing: 0.3px;
+  }
+  .mx-cell:hover .cell-tip { display: block; }
+
+  .matrix-note {
+    margin-top: 24px; font-size: 0.83rem; color: var(--muted);
+    line-height: 1.8; text-align: center;
+  }
+
+  /* ── 欄說明卡片 ── */
+  .col-explain { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0; }
+  .col-card { border: 1.5px solid var(--border); border-radius: 6px; padding: 18px 20px; background: var(--card); }
+  .col-card .col-tag { font-size: 10px; letter-spacing: 2px; font-weight: 700; color: var(--accent); text-transform: uppercase; margin-bottom: 8px; }
+  .col-card p { font-size: 0.88rem; color: var(--muted); margin-bottom: 0; }
+
+  /* ── 定義框 ── */
+  .definition-box {
+    background: #1a1a2e; color: #f0ece0;
+    border-radius: 6px; padding: 28px 32px; margin: 28px 0;
+  }
+  .definition-box .def-title {
+    font-family: 'Noto Serif TC', serif;
+    font-size: 0.78rem; letter-spacing: 3px;
+    color: var(--gold); margin-bottom: 14px; text-transform: uppercase;
+  }
+  .definition-box p { color: #ddd8cc; line-height: 2; }
+  .definition-box .math {
+    font-family: 'JetBrains Mono', monospace;
+    color: #7ec8e3; font-size: 0.95rem;
+    background: rgba(255,255,255,0.06);
+    padding: 2px 8px; border-radius: 3px;
+  }
+  .definition-box strong { color: var(--gold); }
+
+  /* ── 白話文結語 ── */
+  .plain-summary {
+    background: linear-gradient(135deg, #fff8ee 0%, #fffdf7 100%);
+    border: 2px solid var(--gold);
+    border-radius: 8px; padding: 28px 32px; margin: 28px 0;
+  }
+  .plain-summary .plain-tag {
+    font-size: 10px; letter-spacing: 3px; color: var(--gold);
+    font-weight: 700; text-transform: uppercase; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .plain-summary h3 {
+    font-family: 'Noto Serif TC', serif;
+    font-size: 1.05rem; margin-bottom: 14px; color: var(--ink);
+  }
+  .plain-summary p { font-size: 0.95rem; color: #3a3a4a; margin-bottom: 10px; }
+  .plain-summary p:last-child { margin-bottom: 0; }
+  .plain-summary .highlight-line {
+    background: var(--highlight); border-left: 4px solid var(--gold);
+    padding: 10px 16px; border-radius: 0 4px 4px 0;
+    font-size: 0.92rem; margin: 14px 0; color: var(--ink); font-weight: 500;
+  }
+
+  /* ── 分隔線 ── */
+  .divider { border: none; border-top: 1.5px dashed var(--border); margin: 48px 0; }
+
+  /* ── 互動區 ── */
+  .interaction-zone {
+    background: var(--card); border: 2px solid var(--border);
+    border-radius: 8px; padding: 36px; margin-top: 56px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+  }
+  .interaction-zone .zone-header {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 32px;
+    padding-bottom: 20px; border-bottom: 1.5px solid var(--border);
+  }
+  .zone-icon { font-size: 1.8rem; }
+  .zone-title { font-family: 'Noto Serif TC', serif; font-size: 1.25rem; font-weight: 700; }
+  .zone-sub { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
+
+  /* ── 選擇題 ── */
+  .question-block { margin-bottom: 36px; }
+  .q-label { font-size: 10px; letter-spacing: 2px; color: var(--accent); font-weight: 700; text-transform: uppercase; margin-bottom: 8px; }
+  .q-text { font-size: 1rem; font-weight: 500; margin-bottom: 16px; line-height: 1.7; }
+  .options { display: flex; flex-direction: column; gap: 10px; }
+  .option-btn {
+    background: white; border: 1.5px solid var(--border);
+    border-radius: 6px; padding: 13px 18px; cursor: pointer; text-align: left;
+    font-family: 'Noto Sans TC', sans-serif; font-size: 0.92rem;
+    transition: all 0.2s; color: var(--ink);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .option-btn:hover:not(:disabled) { border-color: var(--accent2); background: #f0f7ff; }
+  .option-btn .opt-key { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 700; color: var(--muted); min-width: 20px; }
+  .option-btn.correct { border-color: var(--green); background: #f0faf5; }
+  .option-btn.correct .opt-key { color: var(--green); }
+  .option-btn.wrong { border-color: var(--accent); background: #fff5f5; }
+  .option-btn.wrong .opt-key { color: var(--accent); }
+  .option-btn:disabled { cursor: default; }
+
+  .feedback {
+    margin-top: 12px; padding: 12px 16px;
+    border-radius: 6px; font-size: 0.88rem; line-height: 1.7;
+    display: none;
+  }
+  .feedback.show { display: block; }
+  .feedback.ok { background: #f0faf5; color: #1d7a45; border-left: 4px solid var(--green); }
+  .feedback.no { background: #fff5f5; color: #9b2335; border-left: 4px solid var(--accent); }
+
+  /* ── 完成訊息 ── */
+  .completion {
+    text-align: center; padding: 32px;
+    border: 2px solid var(--green); border-radius: 8px;
+    background: #f0faf5; display: none; margin-top: 28px;
+  }
+  .completion.show { display: block; }
+  .completion .done-icon { font-size: 2.5rem; margin-bottom: 12px; }
+  .completion h3 { font-family: 'Noto Serif TC', serif; font-size: 1.2rem; color: #1d7a45; margin-bottom: 8px; }
+  .completion p { font-size: 0.88rem; color: var(--muted); }
+
+  @media (max-width: 560px) {
+    .col-explain { grid-template-columns: 1fr; }
+    .migration-visual { flex-direction: column; }
+    .interaction-zone { padding: 24px 20px; }
+    .mx-corner, .mx-col-header, .mx-cells { min-width: 72px; }
+    .mx-cells { grid-template-columns: 72px 72px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<div class="page-wrap">
+
+  <!-- 標題 -->
+  <header class="hero section" id="s0">
+    <div class="label">高中數學 · 線性代數</div>
+    <h1>轉移矩陣</h1>
+    <p class="subtitle">請仔細閱讀以下內容，試著理解每個概念再繼續往下。</p>
+  </header>
+
+  <!-- Section 01：情境 -->
+  <div class="section" id="s1">
+    <div class="section-label">Section 01</div>
+    <h2>從一個真實問題出發</h2>
+    <p>假設我們正在研究某個地區的人口流動。每一年，城市和鄉村的居民都會有一部分人搬家，這種「狀態之間的轉換」，正是轉移矩陣想要描述的事情。</p>
+
+    <div class="scenario-card">
+      <div class="tag">情境設定</div>
+      <p>某地區有<strong>城市</strong>與<strong>鄉村</strong>兩種居住地。根據統計：</p>
+      <ul style="margin: 12px 0 0 20px; line-height: 2.4;">
+        <li>住在城市的人，每年有 <strong>85%</strong> 留在城市，<strong>15%</strong> 搬到鄉村</li>
+        <li>住在鄉村的人，每年有 <strong>20%</strong> 搬到城市，<strong>80%</strong> 留在鄉村</li>
+      </ul>
+    </div>
+
+    <div class="migration-visual">
+      <div class="city-box">
+        <div class="city-icon">🏙️</div>
+        <div class="city-name">城市</div>
+        <div class="city-pop">Urban</div>
+      </div>
+      <div class="arrows-mid">
+        <div class="arrow-label"><span class="pct">20%</span> → 城市→鄉村</div>
+        <div class="arrow-label">鄉村→城市 ← <span class="pct">15%</span></div>
+      </div>
+      <div class="city-box">
+        <div class="city-icon">🌾</div>
+        <div class="city-name">鄉村</div>
+        <div class="city-pop">Rural</div>
+      </div>
+    </div>
+
+    <p>注意：每個出發地的機率加起來必須等於 100%。城市的 85% + 15% = 100%，鄉村的 20% + 80% = 100%。這是轉移矩陣的基本要求。</p>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Section 02：矩陣 -->
+  <div class="section" id="s2">
+    <div class="section-label">Section 02</div>
+    <h2>把數字整理成矩陣</h2>
+    <p>我們可以把這些機率，整齊地排入一個 2×2 的矩陣中。這個矩陣就叫做<strong>轉移矩陣</strong>（Transition Matrix）。</p>
+
+    <div class="matrix-reveal">
+      <div class="matrix-title">轉移矩陣 T &nbsp;—&nbsp; 欄＝出發地，列＝目的地</div>
+
+      <div style="display:flex; justify-content:center;">
+        <!-- 整個矩陣排版 -->
+        <div>
+          <!-- 欄標題列（左上角空格 + 兩個欄標） -->
+          <div style="display:flex; margin-bottom:4px;">
+            <div style="width:100px;"></div><!-- 對齊列標題寬度 -->
+            <div style="width:16px;"></div><!-- 左括號寬度 -->
+            <div style="width:96px; text-align:center; font-size:0.76rem; color:var(--accent2); font-weight:600; letter-spacing:0.5px;">從城市出發</div>
+            <div style="width:96px; text-align:center; font-size:0.76rem; color:var(--accent2); font-weight:600; letter-spacing:0.5px;">從鄉村出發</div>
+            <div style="width:16px;"></div><!-- 右括號寬度 -->
+          </div>
+
+          <!-- 矩陣本體 -->
+          <div style="display:flex; align-items:stretch;">
+            <!-- 列標題 -->
+            <div style="width:100px; display:flex; flex-direction:column; justify-content:space-around; padding-right:8px; text-align:right;">
+              <div style="height:52px; display:flex; align-items:center; justify-content:flex-end; font-size:0.76rem; color:var(--accent); font-weight:600; letter-spacing:0.5px;">到城市</div>
+              <div style="height:52px; display:flex; align-items:center; justify-content:flex-end; font-size:0.76rem; color:var(--accent); font-weight:600; letter-spacing:0.5px;">到鄉村</div>
+            </div>
+
+            <!-- 左括號 -->
+            <div style="font-family:'JetBrains Mono',monospace; font-size:4.2rem; font-weight:200; color:#aaa; display:flex; align-items:center; padding:0 2px; line-height:1;">[</div>
+
+            <!-- 數值格 -->
+            <div style="display:grid; grid-template-columns:96px 96px; grid-template-rows:52px 52px;">
+              <div class="mx-cell" style="background:#f0f7ff;">
+                0.85
+                <span class="cell-tip">城市 → 城市（85%留城）</span>
+              </div>
+              <div class="mx-cell">
+                0.20
+                <span class="cell-tip">鄉村 → 城市（20%進城）</span>
+              </div>
+              <div class="mx-cell">
+                0.15
+                <span class="cell-tip">城市 → 鄉村（15%離城）</span>
+              </div>
+              <div class="mx-cell" style="background:#f5fff8;">
+                0.80
+                <span class="cell-tip">鄉村 → 鄉村（80%留鄉）</span>
+              </div>
+            </div>
+
+            <!-- 右括號 -->
+            <div style="font-family:'JetBrains Mono',monospace; font-size:4.2rem; font-weight:200; color:#aaa; display:flex; align-items:center; padding:0 2px; line-height:1;">]</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="matrix-note">
+        ✦ 每一<strong>欄</strong>的數字總和 = 1（100%）&nbsp;|&nbsp; 把滑鼠移到數字上查看含義
+      </div>
+    </div>
+
+    <div class="col-explain">
+      <div class="col-card">
+        <div class="col-tag">第一欄（從城市出發）</div>
+        <p>0.85：城市 → 城市（留下）<br>0.15：城市 → 鄉村（離城）<br>合計：0.85 + 0.15 = <strong>1.00</strong></p>
+      </div>
+      <div class="col-card">
+        <div class="col-tag">第二欄（從鄉村出發）</div>
+        <p>0.20：鄉村 → 城市（進城）<br>0.80：鄉村 → 鄉村（留下）<br>合計：0.20 + 0.80 = <strong>1.00</strong></p>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Section 03：定義 -->
+  <div class="section" id="s3">
+    <div class="section-label">Section 03</div>
+    <h2>轉移矩陣的正式定義</h2>
+
+    <div class="definition-box">
+      <div class="def-title">定義</div>
+      <p>設系統有 <span class="math">n</span> 種狀態。<strong>轉移矩陣</strong> <span class="math">T</span> 是一個 <span class="math">n × n</span> 的矩陣，其中：</p>
+      <p style="margin-top:14px; padding-left:16px; border-left:3px solid #7ec8e3;">
+        第 <span class="math">i</span> 列、第 <span class="math">j</span> 欄的元素 <span class="math">t<sub style="font-size:0.7em">ij</sub></span>，表示系統從<strong>狀態 j</strong> 轉移到<strong>狀態 i</strong> 的機率。
+      </p>
+      <p style="margin-top:14px;">由於機率的性質，每一<strong>欄</strong>的所有元素之和必須等於 <span class="math">1</span>：</p>
+      <p style="margin-top:8px; padding-left:16px; font-family:'JetBrains Mono'; color:#7ec8e3; font-size:0.95rem;">
+        t<sub style="font-size:0.7em">1j</sub> + t<sub style="font-size:0.7em">2j</sub> + … + t<sub style="font-size:0.7em">nj</sub> = 1，對所有 j 成立
+      </p>
+      <p style="margin-top:14px;">
+        此外，所有元素都必須介於 <span class="math">0</span> 和 <span class="math">1</span> 之間（因為它們是機率）。<br>
+        滿足以上條件的矩陣，稱為<strong>隨機矩陣</strong>（Stochastic Matrix）。
+      </p>
+    </div>
+
+    <p>掌握這個定義後，你就能用矩陣的方式，計算若干年後的人口分布。例如，若今年人口向量為 <span style="font-family:'JetBrains Mono'">x</span>，明年的分布就是 <span style="font-family:'JetBrains Mono'; background:var(--highlight); padding:2px 6px; border-radius:3px;">T × x</span>。</p>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Section 04：白話文結語 -->
+  <div class="section" id="s4">
+    <div class="section-label">Section 04</div>
+    <h2>白話文結語</h2>
+
+    <div class="plain-summary">
+      <div class="plain-tag">🗣️ 用人話說一遍</div>
+      <h3>轉移矩陣，其實就是一張「搬家機率表」。</h3>
+      <p>
+        想像你在管理一個城市規劃模擬遊戲。每年結束時，你需要算出明年城市和鄉村各有多少人——問題是，人會搬來搬去。
+      </p>
+      <p>
+        轉移矩陣的任務，就是把「每種人搬家的機率」整理成一張乾淨的表格。<strong>欄</strong>告訴你這個人現在住哪裡（出發地），<strong>列</strong>告訴你他可能搬到哪裡（目的地）。
+      </p>
+      <div class="highlight-line">
+        每一欄加起來等於 1，是因為不管這個人住在哪裡，他下一年一定住在「某個地方」——機率不會憑空消失。
+      </div>
+      <p>
+        有了這張表，只要知道今年有多少人住在城市、多少人住在鄉村，就能用<strong>矩陣乘法</strong>直接算出明年的人口分布。這就是轉移矩陣最強大的地方：讓複雜的人口流動，變成一行數學式。
+      </p>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ── 選擇題互動區 ── -->
+  <div class="interaction-zone section" id="s5">
+    <div class="zone-header">
+      <div class="zone-icon">✏️</div>
+      <div>
+        <div class="zone-title">理解確認</div>
+        <div class="zone-sub">做完這三題，確認你真的讀懂了</div>
+      </div>
+    </div>
+
+    <!-- Q1 -->
+    <div class="question-block" id="q1-block">
+      <div class="q-label">選擇題 01</div>
+      <div class="q-text">轉移矩陣中，每一<u>欄</u>的數字總和應該等於多少？</div>
+      <div class="options">
+        <button class="option-btn" onclick="answer(1,'A')" data-q="1" data-v="A">
+          <span class="opt-key">A</span> 0（因為有人搬出去）
+        </button>
+        <button class="option-btn" onclick="answer(1,'B')" data-q="1" data-v="B">
+          <span class="opt-key">B</span> 1（因為所有機率加起來是 100%）
+        </button>
+        <button class="option-btn" onclick="answer(1,'C')" data-q="1" data-v="C">
+          <span class="opt-key">C</span> 任意正數，沒有特別限制
+        </button>
+        <button class="option-btn" onclick="answer(1,'D')" data-q="1" data-v="D">
+          <span class="opt-key">D</span> 取決於狀態數量 n
+        </button>
+      </div>
+      <div class="feedback" id="fb1"></div>
+    </div>
+
+    <!-- Q2 -->
+    <div class="question-block" id="q2-block">
+      <div class="q-label">選擇題 02</div>
+      <div class="q-text">在本文的例子中，矩陣元素 <span style="font-family:'JetBrains Mono'; background:var(--highlight); padding:1px 6px; border-radius:3px;">0.20</span>（第一列、第二欄）代表什麼意思？</div>
+      <div class="options">
+        <button class="option-btn" onclick="answer(2,'A')" data-q="2" data-v="A">
+          <span class="opt-key">A</span> 城市有 20% 的人每年會搬到鄉村
+        </button>
+        <button class="option-btn" onclick="answer(2,'B')" data-q="2" data-v="B">
+          <span class="opt-key">B</span> 鄉村有 20% 的人每年會搬到城市
+        </button>
+        <button class="option-btn" onclick="answer(2,'C')" data-q="2" data-v="C">
+          <span class="opt-key">C</span> 整體人口中有 20% 住在鄉村
+        </button>
+        <button class="option-btn" onclick="answer(2,'D')" data-q="2" data-v="D">
+          <span class="opt-key">D</span> 鄉村每年增加 20% 的人口
+        </button>
+      </div>
+      <div class="feedback" id="fb2"></div>
+    </div>
+
+    <!-- Q3 -->
+    <div class="question-block" id="q3-block">
+      <div class="q-label">選擇題 03</div>
+      <div class="q-text">以下哪個矩陣<strong>不可能</strong>是一個合法的轉移矩陣？<br><span style="font-size:0.85rem; color:var(--muted);">提示：檢查每一欄的數字加起來是否等於 1。</span></div>
+      <div class="options" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+
+        <button class="option-btn" onclick="answer(3,'A')" data-q="3" data-v="A" style="flex-direction:column; align-items:flex-start; gap:10px;">
+          <span class="opt-key" style="font-size:0.85rem;">選項 A</span>
+          <div style="display:flex; align-items:center; font-family:'JetBrains Mono',monospace; font-size:1rem; gap:2px;">
+            <span style="font-size:2.4rem; font-weight:200; color:#aaa; line-height:1;">[</span>
+            <div style="display:grid; grid-template-columns:52px 52px; grid-template-rows:36px 36px; gap:2px;">
+              <div style="display:flex;align-items:center;justify-content:center;background:#f0f7ff;border-radius:3px;">0.7</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f0f7ff;border-radius:3px;">0.4</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0.3</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0.6</div>
+            </div>
+            <span style="font-size:2.4rem; font-weight:200; color:#aaa; line-height:1;">]</span>
+          </div>
+          <div style="font-size:0.72rem; color:var(--muted); font-family:'Noto Sans TC';">欄一：0.7+0.3＝? &nbsp; 欄二：0.4+0.6＝?</div>
+        </button>
+
+        <button class="option-btn" onclick="answer(3,'B')" data-q="3" data-v="B" style="flex-direction:column; align-items:flex-start; gap:10px;">
+          <span class="opt-key" style="font-size:0.85rem;">選項 B</span>
+          <div style="display:flex; align-items:center; font-family:'JetBrains Mono',monospace; font-size:1rem; gap:2px;">
+            <span style="font-size:2.4rem; font-weight:200; color:#aaa; line-height:1;">[</span>
+            <div style="display:grid; grid-template-columns:52px 52px; grid-template-rows:36px 36px; gap:2px;">
+              <div style="display:flex;align-items:center;justify-content:center;background:#f0f7ff;border-radius:3px;">1.0</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f0f7ff;border-radius:3px;">0.0</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0.0</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">1.0</div>
+            </div>
+            <span style="font-size:2.4rem; font-weight:200; color:#aaa; line-height:1;">]</span>
+          </div>
+          <div style="font-size:0.72rem; color:var(--muted); font-family:'Noto Sans TC';">欄一：1.0+0.0＝? &nbsp; 欄二：0.0+1.0＝?</div>
+        </button>
+
+        <button class="option-btn" onclick="answer(3,'C')" data-q="3" data-v="C" style="flex-direction:column; align-items:flex-start; gap:10px;">
+          <span class="opt-key" style="font-size:0.85rem;">選項 C</span>
+          <div style="display:flex; align-items:center; font-family:'JetBrains Mono',monospace; font-size:1rem; gap:2px;">
+            <span style="font-size:2.4rem; font-weight:200; color:#aaa; line-height:1;">[</span>
+            <div style="display:grid; grid-template-columns:52px 52px; grid-template-rows:36px 36px; gap:2px;">
+              <div style="display:flex;align-items:center;justify-content:center;background:#f0f7ff;border-radius:3px;">0.5</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f0f7ff;border-radius:3px;">0.3</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0.6</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0.7</div>
+            </div>
+            <span style="font-size:2.4rem; font-weight:200; color:#aaa; line-height:1;">]</span>
+          </div>
+          <div style="font-size:0.72rem; color:var(--muted); font-family:'Noto Sans TC';">欄一：0.5+0.6＝? &nbsp; 欄二：0.3+0.7＝?</div>
+        </button>
+
+        <button class="option-btn" onclick="answer(3,'D')" data-q="3" data-v="D" style="flex-direction:column; align-items:flex-start; gap:10px;">
+          <span class="opt-key" style="font-size:0.85rem;">選項 D</span>
+          <div style="display:flex; align-items:center; font-family:'JetBrains Mono',monospace; font-size:1rem; gap:2px;">
+            <span style="font-size:2.4rem; font-weight:200; color:#aaa; line-height:1;">[</span>
+            <div style="display:grid; grid-template-columns:52px 52px; grid-template-rows:36px 36px; gap:2px;">
+              <div style="display:flex;align-items:center;justify-content:center;background:#f0f7ff;border-radius:3px;">0.9</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f0f7ff;border-radius:3px;">0.1</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0.1</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0.9</div>
+            </div>
+            <span style="font-size:2.4rem; font-weight:200; color:#aaa; line-height:1;">]</span>
+          </div>
+          <div style="font-size:0.72rem; color:var(--muted); font-family:'Noto Sans TC';">欄一：0.9+0.1＝? &nbsp; 欄二：0.1+0.9＝?</div>
+        </button>
+
+      </div>
+      <div class="feedback" id="fb3"></div>
+    </div>
+
+    <!-- 完成訊息 -->
+    <div class="completion" id="completion">
+      <div class="done-icon">🎉</div>
+      <h3>太棒了，你完成了這個單元！</h3>
+      <p>你已經理解了轉移矩陣的基本定義。<br>下一步：試著計算兩年後的人口分布，看看 T² × x 會等於多少。</p>
+    </div>
+  </div>
+
+</div><!-- end page-wrap -->
+
+<script>
+// ── Supabase 初始化 ──
+const SUPABASE_URL = 'https://erabqvmiffpecaizmchh.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_3Ytw_g_yk-AbX4GWOU9DEw_YXM8x2z3';
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// 取得 URL 中的 uid（從 index.html 跳過來時帶入）
+const urlParams = new URLSearchParams(window.location.search);
+let currentUserId = urlParams.get('uid') || null;
+
+// 若沒有 uid，從 session 取
+async function initUser() {
+  if (!currentUserId) {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) currentUserId = session.user.id;
+    else {
+      // 未登入，導回首頁
+      window.location.href = 'index.html';
+    }
+  }
+}
+initUser();
+
+// ── 進度條 ──
+window.addEventListener('scroll', () => {
+  const h = document.documentElement;
+  const pct = (h.scrollTop / (h.scrollHeight - h.clientHeight)) * 100;
+  document.getElementById('progress-bar').style.width = pct + '%';
+});
+
+// ── 滾動入場 ──
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.08 });
+document.querySelectorAll('.section').forEach(s => observer.observe(s));
+
+// ── 選擇題 ──
+const correctAnswers = { 1: 'B', 2: 'B', 3: 'C' };
+const userAnswers = { 1: null, 2: null, 3: null };
+const feedbacks = {
+  1: {
+    B: '✓ 答對了！每一欄代表「從某個狀態出發」的所有轉移機率，因為最終一定會去到某個狀態，所有機率之和必定是 1（100%）。',
+    wrong: '× 再想想看：一個人從城市出發，不管搬去哪裡，總機率是多少？他一定會「在某個地方」，所以所有選項的機率加起來應該是？'
+  },
+  2: {
+    B: '✓ 答對了！矩陣位置（第一列、第二欄）的閱讀方式是：第二欄 = 從鄉村出發，第一列 = 到城市。所以 0.20 表示鄉村 → 城市的轉移機率。',
+    wrong: '× 注意欄列的對應關係：欄（column）= 出發地，列（row）= 目的地。第二欄代表從鄉村出發，第一列代表到城市，所以這個數字是「鄉村移到城市」的機率。'
+  },
+  3: {
+    C: '✓ 答對了！矩陣 C 的第一欄是 0.5 + 0.6 = 1.1 ≠ 1，違反了「每欄總和必須等於 1」的規則，因此不合法。選項 A 兩欄都等於 1，B 是單位矩陣（沒有人搬家），D 兩欄也都等於 1，都是合法的。',
+    wrong: '× 提示：逐欄檢查每個矩陣，把同一欄的兩個數字加起來，看看哪一個不等於 1。'
+  }
+};
+
+const answered = { 1: false, 2: false, 3: false };
+
+function answer(q, v) {
+  if (answered[q]) return;
+  answered[q] = true;
+  userAnswers[q] = v;
+
+  const btns = document.querySelectorAll(`[data-q="${q}"]`);
+  btns.forEach(b => {
+    b.disabled = true;
+    if (b.dataset.v === correctAnswers[q]) b.classList.add('correct');
+    else if (b.dataset.v === v) b.classList.add('wrong');
+  });
+
+  const fb = document.getElementById('fb' + q);
+  const isRight = v === correctAnswers[q];
+  fb.textContent = isRight ? feedbacks[q][v] : feedbacks[q].wrong;
+  fb.className = 'feedback show ' + (isRight ? 'ok' : 'no');
+
+  checkCompletion();
+}
+
+async function checkCompletion() {
+  if (!Object.values(answered).every(Boolean)) return;
+
+  document.getElementById('completion').classList.add('show');
+
+  // 計算得分
+  const score = [1,2,3].filter(q => userAnswers[q] === correctAnswers[q]).length;
+
+  // 儲存到 Supabase
+  if (currentUserId) {
+    await sb.from('answers').upsert({
+      user_id: currentUserId,
+      topic: 'transition-matrix',
+      q1: userAnswers[1],
+      q2: userAnswers[2],
+      q3: userAnswers[3],
+      score
+    }, { onConflict: 'user_id,topic' });
+  }
+}
+</script>
+</body>
+</html>
