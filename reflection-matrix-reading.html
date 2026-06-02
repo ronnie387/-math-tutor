@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>鏡射矩陣 — 自主閱讀學習</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700&family=Noto+Sans+TC:wght@300;400;500&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --ink: #1a1a2e; --paper: #f5f0e8; --accent: #c0392b;
+    --accent2: #2980b9; --gold: #d4a017; --muted: #6b6b7a;
+    --card: #fffdf7; --border: #d8cfc0; --green: #27ae60; --highlight: #fff3cd;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--paper); color: var(--ink); font-family: 'Noto Sans TC', sans-serif; line-height: 1.9; min-height: 100vh; }
+  #progress-bar { position: fixed; top: 0; left: 0; height: 4px; background: linear-gradient(90deg, var(--accent), var(--gold)); transition: width 0.4s ease; z-index: 100; width: 0%; }
+  .page-wrap { max-width: 780px; margin: 0 auto; padding: 60px 28px 100px; }
+  .hero { text-align: center; padding: 48px 0 56px; border-bottom: 2px solid var(--border); margin-bottom: 52px; }
+  .hero .label { font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: var(--accent); font-weight: 500; margin-bottom: 16px; }
+  .hero h1 { font-family: 'Noto Serif TC', serif; font-size: clamp(2rem, 5vw, 3rem); font-weight: 700; color: var(--ink); line-height: 1.3; margin-bottom: 16px; }
+  .hero .subtitle { color: var(--muted); font-size: 0.95rem; max-width: 440px; margin: 0 auto; }
+  .section { margin-bottom: 52px; opacity: 0; transform: translateY(20px); transition: opacity 0.6s ease, transform 0.6s ease; }
+  .section.visible { opacity: 1; transform: none; }
+  .section-label { font-size: 10px; letter-spacing: 3px; color: var(--accent); font-weight: 600; text-transform: uppercase; margin-bottom: 10px; }
+  .section h2 { font-family: 'Noto Serif TC', serif; font-size: 1.45rem; font-weight: 700; margin-bottom: 18px; color: var(--ink); }
+  .section p { font-size: 1rem; color: #2c2c3a; margin-bottom: 16px; }
+  .scenario-card { background: var(--card); border: 1.5px solid var(--border); border-left: 5px solid var(--accent2); border-radius: 4px; padding: 24px 28px; margin: 24px 0; box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
+  .scenario-card .tag { font-size: 10px; letter-spacing: 2px; color: var(--accent2); font-weight: 600; text-transform: uppercase; margin-bottom: 8px; }
+
+  /* 鏡射視覺化 */
+  .mirror-visual { display: flex; justify-content: center; margin: 32px 0; }
+  .mirror-canvas { background: white; border: 1.5px solid var(--border); border-radius: 8px; padding: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+
+  /* 矩陣展示 */
+  .matrix-reveal { background: var(--card); border: 1.5px solid var(--border); border-radius: 6px; padding: 32px 28px; margin: 28px 0; box-shadow: 0 3px 16px rgba(0,0,0,0.06); overflow-x: auto; }
+  .matrix-title { font-size: 0.85rem; color: var(--muted); margin-bottom: 28px; letter-spacing: 1px; text-align: center; }
+  .mx-cell { display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 600; border-radius: 4px; cursor: default; transition: background 0.25s; position: relative; }
+  .mx-cell:hover { background: var(--highlight); }
+  .mx-cell .cell-tip { display: none; position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: var(--ink); color: #f0ece0; font-family: 'Noto Sans TC', sans-serif; font-size: 0.73rem; white-space: nowrap; padding: 5px 10px; border-radius: 4px; pointer-events: none; z-index: 10; }
+  .mx-cell:hover .cell-tip { display: block; }
+  .matrix-note { margin-top: 24px; font-size: 0.83rem; color: var(--muted); line-height: 1.8; text-align: center; }
+
+  .matrix-group { display: flex; gap: 32px; flex-wrap: wrap; justify-content: center; margin: 28px 0; }
+  .matrix-item { background: var(--card); border: 1.5px solid var(--border); border-radius: 6px; padding: 20px 24px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+  .matrix-item .m-label { font-size: 0.78rem; color: var(--accent2); font-weight: 600; margin-bottom: 12px; letter-spacing: 0.5px; }
+
+  .definition-box { background: #1a1a2e; color: #f0ece0; border-radius: 6px; padding: 28px 32px; margin: 28px 0; }
+  .definition-box .def-title { font-family: 'Noto Serif TC', serif; font-size: 0.78rem; letter-spacing: 3px; color: var(--gold); margin-bottom: 14px; text-transform: uppercase; }
+  .definition-box p { color: #ddd8cc; line-height: 2; }
+  .definition-box .math { font-family: 'JetBrains Mono', monospace; color: #7ec8e3; font-size: 0.95rem; background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 3px; }
+  .definition-box strong { color: var(--gold); }
+
+  .plain-summary { background: linear-gradient(135deg, #fff8ee 0%, #fffdf7 100%); border: 2px solid var(--gold); border-radius: 8px; padding: 28px 32px; margin: 28px 0; }
+  .plain-summary .plain-tag { font-size: 10px; letter-spacing: 3px; color: var(--gold); font-weight: 700; text-transform: uppercase; margin-bottom: 12px; }
+  .plain-summary h3 { font-family: 'Noto Serif TC', serif; font-size: 1.05rem; margin-bottom: 14px; color: var(--ink); }
+  .plain-summary p { font-size: 0.95rem; color: #3a3a4a; margin-bottom: 10px; }
+  .plain-summary .highlight-line { background: var(--highlight); border-left: 4px solid var(--gold); padding: 10px 16px; border-radius: 0 4px 4px 0; font-size: 0.92rem; margin: 14px 0; color: var(--ink); font-weight: 500; }
+
+  .col-explain { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin: 24px 0; }
+  .col-card { border: 1.5px solid var(--border); border-radius: 6px; padding: 16px 18px; background: var(--card); }
+  .col-card .col-tag { font-size: 10px; letter-spacing: 2px; font-weight: 700; color: var(--accent); text-transform: uppercase; margin-bottom: 8px; }
+  .col-card p { font-size: 0.82rem; color: var(--muted); margin-bottom: 0; }
+
+  .divider { border: none; border-top: 1.5px dashed var(--border); margin: 48px 0; }
+
+  /* 互動區 */
+  .interaction-zone { background: var(--card); border: 2px solid var(--border); border-radius: 8px; padding: 36px; margin-top: 56px; box-shadow: 0 4px 24px rgba(0,0,0,0.07); }
+  .interaction-zone .zone-header { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 1.5px solid var(--border); }
+  .zone-icon { font-size: 1.8rem; }
+  .zone-title { font-family: 'Noto Serif TC', serif; font-size: 1.25rem; font-weight: 700; }
+  .zone-sub { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
+  .question-block { margin-bottom: 36px; }
+  .q-label { font-size: 10px; letter-spacing: 2px; color: var(--accent); font-weight: 700; text-transform: uppercase; margin-bottom: 8px; }
+  .q-text { font-size: 1rem; font-weight: 500; margin-bottom: 16px; line-height: 1.7; }
+  .options { display: flex; flex-direction: column; gap: 10px; }
+  .option-btn { background: white; border: 1.5px solid var(--border); border-radius: 6px; padding: 13px 18px; cursor: pointer; text-align: left; font-family: 'Noto Sans TC', sans-serif; font-size: 0.92rem; transition: all 0.2s; color: var(--ink); display: flex; align-items: center; gap: 12px; }
+  .option-btn:hover:not(:disabled) { border-color: var(--accent2); background: #f0f7ff; }
+  .option-btn .opt-key { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 700; color: var(--muted); min-width: 20px; }
+  .option-btn.correct { border-color: var(--green); background: #f0faf5; }
+  .option-btn.correct .opt-key { color: var(--green); }
+  .option-btn.wrong { border-color: var(--accent); background: #fff5f5; }
+  .option-btn.wrong .opt-key { color: var(--accent); }
+  .option-btn:disabled { cursor: default; }
+  .feedback { margin-top: 12px; padding: 12px 16px; border-radius: 6px; font-size: 0.88rem; line-height: 1.7; display: none; }
+  .feedback.show { display: block; }
+  .feedback.ok { background: #f0faf5; color: #1d7a45; border-left: 4px solid var(--green); }
+  .feedback.no { background: #fff5f5; color: #9b2335; border-left: 4px solid var(--accent); }
+  .completion { text-align: center; padding: 32px; border: 2px solid var(--green); border-radius: 8px; background: #f0faf5; display: none; margin-top: 28px; }
+  .completion.show { display: block; }
+  .completion .done-icon { font-size: 2.5rem; margin-bottom: 12px; }
+  .completion h3 { font-family: 'Noto Serif TC', serif; font-size: 1.2rem; color: #1d7a45; margin-bottom: 8px; }
+  .completion p { font-size: 0.88rem; color: var(--muted); }
+  .back-link { display: inline-block; margin-bottom: 24px; font-size: 0.85rem; color: var(--accent2); text-decoration: none; }
+  .back-link:hover { text-decoration: underline; }
+  @media (max-width: 560px) { .col-explain { grid-template-columns: 1fr; } .interaction-zone { padding: 24px 20px; } .matrix-group { gap: 16px; } }
+</style>
+</head>
+<body>
+<div id="progress-bar"></div>
+<div class="page-wrap">
+  <a href="index.html" class="back-link section visible">← 回學習首頁</a>
+
+  <header class="hero section" id="s0">
+    <div class="label">高中數學 · 線性代數 02</div>
+    <h1>鏡射矩陣</h1>
+    <p class="subtitle">請仔細閱讀以下內容，試著理解每個概念再繼續往下。</p>
+  </header>
+
+  <!-- Section 01 -->
+  <div class="section" id="s1">
+    <div class="section-label">Section 01</div>
+    <h2>從鏡子說起</h2>
+    <p>你有沒有想過，站在鏡子前，你的左手在鏡子裡變成了右手？這個「翻轉」的動作，正是數學裡的<strong>鏡射</strong>。在坐標平面上，鏡射就是把一個點「翻折」到某條軸的另一側。</p>
+
+    <div class="scenario-card">
+      <div class="tag">情境設定</div>
+      <p>考慮坐標平面上一個點 P(3, 2)。</p>
+      <ul style="margin: 12px 0 0 20px; line-height: 2.4;">
+        <li>對 <strong>x 軸</strong>鏡射：P(3, 2) → P'(3, <strong>−2</strong>）y 坐標變號</li>
+        <li>對 <strong>y 軸</strong>鏡射：P(3, 2) → P'(<strong>−3</strong>, 2）x 坐標變號</li>
+        <li>對 <strong>y = x</strong> 鏡射：P(3, 2) → P'(<strong>2, 3</strong>）x、y 互換</li>
+      </ul>
+    </div>
+
+    <div class="mirror-visual">
+      <svg width="420" height="260" viewBox="-10 -10 420 260" style="max-width:100%">
+        <!-- 坐標軸 -->
+        <line x1="0" y1="130" x2="400" y2="130" stroke="#aaa" stroke-width="1.5"/>
+        <line x1="200" y1="0" x2="200" y2="260" stroke="#aaa" stroke-width="1.5"/>
+        <!-- y=x 線 -->
+        <line x1="0" y1="260" x2="260" y2="0" stroke="#ccc" stroke-width="1" stroke-dasharray="5,4"/>
+        <!-- 軸標籤 -->
+        <text x="390" y="125" font-size="13" fill="#888" font-family="serif">x</text>
+        <text x="205" y="14" font-size="13" fill="#888" font-family="serif">y</text>
+        <text x="252" y="12" font-size="11" fill="#bbb" font-family="serif">y=x</text>
+        <!-- 原點 P(3,2) → 畫面座標 P(260, 90) -->
+        <circle cx="260" cy="90" r="6" fill="#2980b9"/>
+        <text x="266" y="86" font-size="12" fill="#2980b9" font-weight="bold">P(3,2)</text>
+        <!-- 對x軸: (3,-2) → (260, 170) -->
+        <circle cx="260" cy="170" r="6" fill="#c0392b"/>
+        <text x="266" y="185" font-size="11" fill="#c0392b">P'(3,−2) 對x軸</text>
+        <line x1="260" y1="90" x2="260" y2="170" stroke="#c0392b" stroke-width="1" stroke-dasharray="4,3"/>
+        <!-- 對y軸: (-3,2) → (140, 90) -->
+        <circle cx="140" cy="90" r="6" fill="#27ae60"/>
+        <text x="52" y="86" font-size="11" fill="#27ae60">P'(−3,2) 對y軸</text>
+        <line x1="260" y1="90" x2="140" y2="90" stroke="#27ae60" stroke-width="1" stroke-dasharray="4,3"/>
+        <!-- 對y=x: (2,3) → (240, 70) -->
+        <circle cx="240" cy="70" r="6" fill="#d4a017"/>
+        <text x="245" y="65" font-size="11" fill="#d4a017">P'(2,3) 對y=x</text>
+        <line x1="260" y1="90" x2="240" y2="70" stroke="#d4a017" stroke-width="1" stroke-dasharray="4,3"/>
+      </svg>
+    </div>
+    <p>每一種鏡射，都可以用一個矩陣來描述——這就是<strong>鏡射矩陣</strong>。</p>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Section 02 -->
+  <div class="section" id="s2">
+    <div class="section-label">Section 02</div>
+    <h2>三種常見的鏡射矩陣</h2>
+    <p>對不同的軸作鏡射，對應的矩陣也不同。以下是三種你最常遇到的鏡射矩陣：</p>
+
+    <div class="matrix-group">
+      <!-- 對x軸 -->
+      <div class="matrix-item">
+        <div class="m-label">對 x 軸鏡射</div>
+        <div style="display:flex; align-items:center; font-family:'JetBrains Mono',monospace; font-size:1.05rem; gap:2px; justify-content:center;">
+          <span style="font-size:3rem; font-weight:200; color:#aaa;">[</span>
+          <div style="display:grid; grid-template-columns:56px 56px; grid-template-rows:44px 44px;">
+            <div class="mx-cell" style="background:#f0f7ff;">1<span class="cell-tip">x 坐標不變</span></div>
+            <div class="mx-cell">0</div>
+            <div class="mx-cell">0</div>
+            <div class="mx-cell" style="background:#fff5f5;">−1<span class="cell-tip">y 坐標變號</span></div>
+          </div>
+          <span style="font-size:3rem; font-weight:200; color:#aaa;">]</span>
+        </div>
+        <div style="margin-top:10px; font-size:0.75rem; color:var(--muted);">(3,2) → (3,−2)</div>
+      </div>
+
+      <!-- 對y軸 -->
+      <div class="matrix-item">
+        <div class="m-label">對 y 軸鏡射</div>
+        <div style="display:flex; align-items:center; font-family:'JetBrains Mono',monospace; font-size:1.05rem; gap:2px; justify-content:center;">
+          <span style="font-size:3rem; font-weight:200; color:#aaa;">[</span>
+          <div style="display:grid; grid-template-columns:56px 56px; grid-template-rows:44px 44px;">
+            <div class="mx-cell" style="background:#fff5f5;">−1<span class="cell-tip">x 坐標變號</span></div>
+            <div class="mx-cell">0</div>
+            <div class="mx-cell">0</div>
+            <div class="mx-cell" style="background:#f0f7ff;">1<span class="cell-tip">y 坐標不變</span></div>
+          </div>
+          <span style="font-size:3rem; font-weight:200; color:#aaa;">]</span>
+        </div>
+        <div style="margin-top:10px; font-size:0.75rem; color:var(--muted);">(3,2) → (−3,2)</div>
+      </div>
+
+      <!-- 對y=x -->
+      <div class="matrix-item">
+        <div class="m-label">對 y = x 鏡射</div>
+        <div style="display:flex; align-items:center; font-family:'JetBrains Mono',monospace; font-size:1.05rem; gap:2px; justify-content:center;">
+          <span style="font-size:3rem; font-weight:200; color:#aaa;">[</span>
+          <div style="display:grid; grid-template-columns:56px 56px; grid-template-rows:44px 44px;">
+            <div class="mx-cell">0<span class="cell-tip">x 變成原本的 y</span></div>
+            <div class="mx-cell" style="background:#f5fff8;">1<span class="cell-tip">x 變成原本的 y</span></div>
+            <div class="mx-cell" style="background:#f5fff8;">1<span class="cell-tip">y 變成原本的 x</span></div>
+            <div class="mx-cell">0<span class="cell-tip">y 變成原本的 x</span></div>
+          </div>
+          <span style="font-size:3rem; font-weight:200; color:#aaa;">]</span>
+        </div>
+        <div style="margin-top:10px; font-size:0.75rem; color:var(--muted);">(3,2) → (2,3)</div>
+      </div>
+    </div>
+
+    <div class="col-explain">
+      <div class="col-card">
+        <div class="col-tag">對 x 軸</div>
+        <p>y 坐標取負號<br>x 不動<br>(x,y) → (x,−y)</p>
+      </div>
+      <div class="col-card">
+        <div class="col-tag">對 y 軸</div>
+        <p>x 坐標取負號<br>y 不動<br>(x,y) → (−x,y)</p>
+      </div>
+      <div class="col-card">
+        <div class="col-tag">對 y=x</div>
+        <p>x、y 互換<br>就像翻轉名牌<br>(x,y) → (y,x)</p>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Section 03 -->
+  <div class="section" id="s3">
+    <div class="section-label">Section 03</div>
+    <h2>一般鏡射矩陣的公式</h2>
+    <p>除了這三種特殊情況，對任何通過原點、斜角為 θ 的直線作鏡射，都有一個統一的公式：</p>
+
+    <div class="definition-box">
+      <div class="def-title">鏡射矩陣公式</div>
+      <p>若直線 L 通過原點且斜角為 <span class="math">θ</span>，則對 L 作鏡射的矩陣為：</p>
+      <p style="margin-top:14px; padding-left:16px; border-left:3px solid #7ec8e3; font-family:'JetBrains Mono'; color:#7ec8e3; font-size:0.95rem; line-height:2.2;">
+        M<sub>θ</sub> = [ cos2θ &nbsp; sin2θ ]<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[ sin2θ &nbsp; −cos2θ ]
+      </p>
+      <p style="margin-top:14px;">
+        重要性質：<strong>鏡射兩次等於沒動</strong>，即 <span class="math">M<sub>θ</sub>² = I</span>（單位矩陣）。<br>
+        鏡射不改變面積：<span class="math">det(M<sub>θ</sub>) = −1</span>，面積比為 1。
+      </p>
+    </div>
+
+    <p>以對 x 軸鏡射為例，斜角 θ = 0°，代入公式：cos(0°) = 1，sin(0°) = 0，得到矩陣 [[1, 0], [0, −1]]，和上面完全吻合！</p>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Section 04 白話文 -->
+  <div class="section" id="s4">
+    <div class="section-label">Section 04</div>
+    <h2>白話文結語</h2>
+    <div class="plain-summary">
+      <div class="plain-tag">🗣️ 用人話說一遍</div>
+      <h3>鏡射矩陣，就是一張「翻折規則表」。</h3>
+      <p>你在鏡子前舉右手，鏡子裡的人舉的是左手——這個翻折的規則，就藏在矩陣的數字裡。</p>
+      <p>對 x 軸鏡射：y 坐標變號，x 不動。對 y 軸：x 變號，y 不動。對 y=x：xy 互換。每一種翻折，都對應一個獨特的矩陣。</p>
+      <div class="highlight-line">
+        鏡射最特別的地方是：翻兩次等於沒翻。M² = I，這就是為什麼鏡射矩陣的行列式是 −1，而不是 +1。
+      </div>
+      <p>有了鏡射矩陣，只要把點的坐標寫成向量，用矩陣乘法就能直接算出對稱點——不用畫圖、不用量距離。</p>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- 選擇題 -->
+  <div class="interaction-zone section" id="s5">
+    <div class="zone-header">
+      <div class="zone-icon">✏️</div>
+      <div>
+        <div class="zone-title">理解確認</div>
+        <div class="zone-sub">做完這三題，確認你真的讀懂了</div>
+      </div>
+    </div>
+
+    <!-- Q1 -->
+    <div class="question-block">
+      <div class="q-label">選擇題 01</div>
+      <div class="q-text">點 P(5, −3) 對 <u>x 軸</u>鏡射後，得到的點 P' 坐標是？</div>
+      <div class="options">
+        <button class="option-btn" onclick="answer(1,'A')" data-q="1" data-v="A"><span class="opt-key">A</span> P'(−5, 3)</button>
+        <button class="option-btn" onclick="answer(1,'B')" data-q="1" data-v="B"><span class="opt-key">B</span> P'(5, 3)</button>
+        <button class="option-btn" onclick="answer(1,'C')" data-q="1" data-v="C"><span class="opt-key">C</span> P'(−3, 5)</button>
+        <button class="option-btn" onclick="answer(1,'D')" data-q="1" data-v="D"><span class="opt-key">D</span> P'(−5, −3)</button>
+      </div>
+      <div class="feedback" id="fb1"></div>
+    </div>
+
+    <!-- Q2 -->
+    <div class="question-block">
+      <div class="q-label">選擇題 02</div>
+      <div class="q-text">以下哪個矩陣代表「對 <u>y = x</u> 作鏡射」？</div>
+      <div class="options" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <button class="option-btn" onclick="answer(2,'A')" data-q="2" data-v="A" style="flex-direction:column; align-items:flex-start; gap:8px;">
+          <span class="opt-key" style="font-size:0.85rem;">選項 A</span>
+          <div style="display:flex; align-items:center; font-family:'JetBrains Mono'; font-size:0.95rem; gap:2px;">
+            <span style="font-size:2.2rem; font-weight:200; color:#aaa;">[</span>
+            <div style="display:grid; grid-template-columns:44px 44px; grid-template-rows:36px 36px; gap:2px;">
+              <div style="display:flex;align-items:center;justify-content:center;background:#f0f7ff;border-radius:3px;">1</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#fff5f5;border-radius:3px;">−1</div>
+            </div>
+            <span style="font-size:2.2rem; font-weight:200; color:#aaa;">]</span>
+          </div>
+        </button>
+        <button class="option-btn" onclick="answer(2,'B')" data-q="2" data-v="B" style="flex-direction:column; align-items:flex-start; gap:8px;">
+          <span class="opt-key" style="font-size:0.85rem;">選項 B</span>
+          <div style="display:flex; align-items:center; font-family:'JetBrains Mono'; font-size:0.95rem; gap:2px;">
+            <span style="font-size:2.2rem; font-weight:200; color:#aaa;">[</span>
+            <div style="display:grid; grid-template-columns:44px 44px; grid-template-rows:36px 36px; gap:2px;">
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f0f7ff;border-radius:3px;">1</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f0f7ff;border-radius:3px;">1</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0</div>
+            </div>
+            <span style="font-size:2.2rem; font-weight:200; color:#aaa;">]</span>
+          </div>
+        </button>
+        <button class="option-btn" onclick="answer(2,'C')" data-q="2" data-v="C" style="flex-direction:column; align-items:flex-start; gap:8px;">
+          <span class="opt-key" style="font-size:0.85rem;">選項 C</span>
+          <div style="display:flex; align-items:center; font-family:'JetBrains Mono'; font-size:0.95rem; gap:2px;">
+            <span style="font-size:2.2rem; font-weight:200; color:#aaa;">[</span>
+            <div style="display:grid; grid-template-columns:44px 44px; grid-template-rows:36px 36px; gap:2px;">
+              <div style="display:flex;align-items:center;justify-content:center;background:#fff5f5;border-radius:3px;">−1</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f0f7ff;border-radius:3px;">1</div>
+            </div>
+            <span style="font-size:2.2rem; font-weight:200; color:#aaa;">]</span>
+          </div>
+        </button>
+        <button class="option-btn" onclick="answer(2,'D')" data-q="2" data-v="D" style="flex-direction:column; align-items:flex-start; gap:8px;">
+          <span class="opt-key" style="font-size:0.85rem;">選項 D</span>
+          <div style="display:flex; align-items:center; font-family:'JetBrains Mono'; font-size:0.95rem; gap:2px;">
+            <span style="font-size:2.2rem; font-weight:200; color:#aaa;">[</span>
+            <div style="display:grid; grid-template-columns:44px 44px; grid-template-rows:36px 36px; gap:2px;">
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#fff5f5;border-radius:3px;">−1</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#fff5f5;border-radius:3px;">−1</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0</div>
+            </div>
+            <span style="font-size:2.2rem; font-weight:200; color:#aaa;">]</span>
+          </div>
+        </button>
+      </div>
+      <div class="feedback" id="fb2"></div>
+    </div>
+
+    <!-- Q3 -->
+    <div class="question-block">
+      <div class="q-label">選擇題 03</div>
+      <div class="q-text">鏡射矩陣 M 有一個重要性質：M² = I。這句話的意思是？</div>
+      <div class="options">
+        <button class="option-btn" onclick="answer(3,'A')" data-q="3" data-v="A"><span class="opt-key">A</span> 鏡射兩次之後，點會移動到原點</button>
+        <button class="option-btn" onclick="answer(3,'B')" data-q="3" data-v="B"><span class="opt-key">B</span> 鏡射兩次之後，點會回到原來的位置</button>
+        <button class="option-btn" onclick="answer(3,'C')" data-q="3" data-v="C"><span class="opt-key">C</span> 鏡射一次後面積會變成兩倍</button>
+        <button class="option-btn" onclick="answer(3,'D')" data-q="3" data-v="D"><span class="opt-key">D</span> 鏡射矩陣只能用在正方形</button>
+      </div>
+      <div class="feedback" id="fb3"></div>
+    </div>
+
+    <div class="completion" id="completion">
+      <div class="done-icon">🎉</div>
+      <h3>太棒了，你完成了這個單元！</h3>
+      <p>你已經理解了鏡射矩陣的概念。<br>下一步：試試旋轉矩陣，看看向量如何以原點為中心旋轉！</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://erabqvmiffpecaizmchh.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_3Ytw_g_yk-AbX4GWOU9DEw_YXM8x2z3';
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+const urlParams = new URLSearchParams(window.location.search);
+let currentUserId = urlParams.get('uid') || null;
+async function initUser() {
+  if (!currentUserId) {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) currentUserId = session.user.id;
+    else window.location.href = 'index.html';
+  }
+}
+initUser();
+
+window.addEventListener('scroll', () => {
+  const h = document.documentElement;
+  document.getElementById('progress-bar').style.width = (h.scrollTop / (h.scrollHeight - h.clientHeight)) * 100 + '%';
+});
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.08 });
+document.querySelectorAll('.section').forEach(s => observer.observe(s));
+
+const correctAnswers = { 1: 'B', 2: 'B', 3: 'B' };
+const userAnswers = { 1: null, 2: null, 3: null };
+const feedbacks = {
+  1: {
+    B: '✓ 答對了！對 x 軸鏡射，x 坐標不變，y 坐標取負號。P(5,−3) → P\'(5, 3)。',
+    wrong: '× 再想想：對 x 軸鏡射，就像在 x 軸那面「鏡子」翻折。x 坐標不動，只有 y 坐標變號。'
+  },
+  2: {
+    B: '✓ 答對了！對 y=x 鏡射就是把 x、y 坐標互換，矩陣是 [[0,1],[1,0]]。選項 A 是對 x 軸，C 是對 y 軸。',
+    wrong: '× 提示：對 y=x 鏡射，(x,y) 會變成 (y,x)。哪個矩陣乘上 [x,y] 後，x 和 y 會互換？'
+  },
+  3: {
+    B: '✓ 答對了！M² = I 表示做兩次鏡射等於單位矩陣，也就是點回到原位。就像照兩次鏡子——你還是你。',
+    wrong: '× 提示：I 是單位矩陣，代表「什麼都沒發生」。M² = I 表示做兩次鏡射的結果等於沒做，所以點回到原來位置。'
+  }
+};
+const answered = { 1: false, 2: false, 3: false };
+
+function answer(q, v) {
+  if (answered[q]) return;
+  answered[q] = true;
+  userAnswers[q] = v;
+  const btns = document.querySelectorAll(`[data-q="${q}"]`);
+  btns.forEach(b => {
+    b.disabled = true;
+    if (b.dataset.v === correctAnswers[q]) b.classList.add('correct');
+    else if (b.dataset.v === v) b.classList.add('wrong');
+  });
+  const fb = document.getElementById('fb' + q);
+  const isRight = v === correctAnswers[q];
+  fb.textContent = isRight ? feedbacks[q][v] : feedbacks[q].wrong;
+  fb.className = 'feedback show ' + (isRight ? 'ok' : 'no');
+  checkCompletion();
+}
+async function checkCompletion() {
+  if (!Object.values(answered).every(Boolean)) return;
+  document.getElementById('completion').classList.add('show');
+  const score = [1,2,3].filter(q => userAnswers[q] === correctAnswers[q]).length;
+  if (currentUserId) {
+    await sb.from('answers').upsert({ user_id: currentUserId, topic: 'reflection-matrix', q1: userAnswers[1], q2: userAnswers[2], q3: userAnswers[3], score }, { onConflict: 'user_id,topic' });
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>旋轉矩陣 — 自主閱讀學習</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600;700&family=Noto+Sans+TC:wght@300;400;500&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root { --ink:#1a1a2e; --paper:#f5f0e8; --accent:#c0392b; --accent2:#2980b9; --gold:#d4a017; --muted:#6b6b7a; --card:#fffdf7; --border:#d8cfc0; --green:#27ae60; --highlight:#fff3cd; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--paper); color:var(--ink); font-family:'Noto Sans TC',sans-serif; line-height:1.9; min-height:100vh; }
+  #progress-bar { position:fixed; top:0; left:0; height:4px; background:linear-gradient(90deg,var(--accent),var(--gold)); transition:width 0.4s; z-index:100; width:0%; }
+  .page-wrap { max-width:780px; margin:0 auto; padding:60px 28px 100px; }
+  .hero { text-align:center; padding:48px 0 56px; border-bottom:2px solid var(--border); margin-bottom:52px; }
+  .hero .label { font-size:11px; letter-spacing:4px; text-transform:uppercase; color:var(--accent); font-weight:500; margin-bottom:16px; }
+  .hero h1 { font-family:'Noto Serif TC',serif; font-size:clamp(2rem,5vw,3rem); font-weight:700; color:var(--ink); line-height:1.3; margin-bottom:16px; }
+  .hero .subtitle { color:var(--muted); font-size:0.95rem; max-width:440px; margin:0 auto; }
+  .section { margin-bottom:52px; opacity:0; transform:translateY(20px); transition:opacity 0.6s,transform 0.6s; }
+  .section.visible { opacity:1; transform:none; }
+  .section-label { font-size:10px; letter-spacing:3px; color:var(--accent); font-weight:600; text-transform:uppercase; margin-bottom:10px; }
+  .section h2 { font-family:'Noto Serif TC',serif; font-size:1.45rem; font-weight:700; margin-bottom:18px; }
+  .section p { font-size:1rem; color:#2c2c3a; margin-bottom:16px; }
+  .scenario-card { background:var(--card); border:1.5px solid var(--border); border-left:5px solid var(--accent2); border-radius:4px; padding:24px 28px; margin:24px 0; box-shadow:0 2px 12px rgba(0,0,0,0.05); }
+  .scenario-card .tag { font-size:10px; letter-spacing:2px; color:var(--accent2); font-weight:600; text-transform:uppercase; margin-bottom:8px; }
+  .clock-visual { display:flex; justify-content:center; margin:32px 0; gap:32px; flex-wrap:wrap; }
+  .clock-wrap { text-align:center; }
+  .clock-label { font-size:0.8rem; color:var(--muted); margin-top:8px; }
+  .mx-cell { display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-size:1rem; font-weight:600; border-radius:4px; cursor:default; transition:background 0.25s; position:relative; }
+  .mx-cell:hover { background:var(--highlight); }
+  .mx-cell .cell-tip { display:none; position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); background:var(--ink); color:#f0ece0; font-family:'Noto Sans TC',sans-serif; font-size:0.73rem; white-space:nowrap; padding:5px 10px; border-radius:4px; pointer-events:none; z-index:10; }
+  .mx-cell:hover .cell-tip { display:block; }
+  .matrix-reveal { background:var(--card); border:1.5px solid var(--border); border-radius:6px; padding:32px 28px; margin:28px 0; box-shadow:0 3px 16px rgba(0,0,0,0.06); overflow-x:auto; }
+  .matrix-title { font-size:0.85rem; color:var(--muted); margin-bottom:28px; letter-spacing:1px; text-align:center; }
+  .matrix-note { margin-top:24px; font-size:0.83rem; color:var(--muted); line-height:1.8; text-align:center; }
+  .definition-box { background:#1a1a2e; color:#f0ece0; border-radius:6px; padding:28px 32px; margin:28px 0; }
+  .definition-box .def-title { font-family:'Noto Serif TC',serif; font-size:0.78rem; letter-spacing:3px; color:var(--gold); margin-bottom:14px; text-transform:uppercase; }
+  .definition-box p { color:#ddd8cc; line-height:2; }
+  .definition-box .math { font-family:'JetBrains Mono',monospace; color:#7ec8e3; font-size:0.95rem; background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:3px; }
+  .definition-box strong { color:var(--gold); }
+  .plain-summary { background:linear-gradient(135deg,#fff8ee 0%,#fffdf7 100%); border:2px solid var(--gold); border-radius:8px; padding:28px 32px; margin:28px 0; }
+  .plain-summary .plain-tag { font-size:10px; letter-spacing:3px; color:var(--gold); font-weight:700; text-transform:uppercase; margin-bottom:12px; }
+  .plain-summary h3 { font-family:'Noto Serif TC',serif; font-size:1.05rem; margin-bottom:14px; }
+  .plain-summary p { font-size:0.95rem; color:#3a3a4a; margin-bottom:10px; }
+  .plain-summary .highlight-line { background:var(--highlight); border-left:4px solid var(--gold); padding:10px 16px; border-radius:0 4px 4px 0; font-size:0.92rem; margin:14px 0; font-weight:500; }
+  .special-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin:24px 0; }
+  .special-card { border:1.5px solid var(--border); border-radius:6px; padding:16px; background:var(--card); text-align:center; }
+  .special-card .s-angle { font-family:'JetBrains Mono',monospace; font-size:1.1rem; font-weight:700; color:var(--accent2); margin-bottom:8px; }
+  .special-card .s-matrix { font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:var(--ink); line-height:1.8; }
+  .special-card .s-effect { font-size:0.75rem; color:var(--muted); margin-top:8px; }
+  .divider { border:none; border-top:1.5px dashed var(--border); margin:48px 0; }
+  .interaction-zone { background:var(--card); border:2px solid var(--border); border-radius:8px; padding:36px; margin-top:56px; box-shadow:0 4px 24px rgba(0,0,0,0.07); }
+  .interaction-zone .zone-header { display:flex; align-items:center; gap:12px; margin-bottom:32px; padding-bottom:20px; border-bottom:1.5px solid var(--border); }
+  .zone-icon { font-size:1.8rem; }
+  .zone-title { font-family:'Noto Serif TC',serif; font-size:1.25rem; font-weight:700; }
+  .zone-sub { font-size:0.82rem; color:var(--muted); margin-top:2px; }
+  .question-block { margin-bottom:36px; }
+  .q-label { font-size:10px; letter-spacing:2px; color:var(--accent); font-weight:700; text-transform:uppercase; margin-bottom:8px; }
+  .q-text { font-size:1rem; font-weight:500; margin-bottom:16px; line-height:1.7; }
+  .options { display:flex; flex-direction:column; gap:10px; }
+  .option-btn { background:white; border:1.5px solid var(--border); border-radius:6px; padding:13px 18px; cursor:pointer; text-align:left; font-family:'Noto Sans TC',sans-serif; font-size:0.92rem; transition:all 0.2s; color:var(--ink); display:flex; align-items:center; gap:12px; }
+  .option-btn:hover:not(:disabled) { border-color:var(--accent2); background:#f0f7ff; }
+  .option-btn .opt-key { font-family:'JetBrains Mono',monospace; font-size:0.8rem; font-weight:700; color:var(--muted); min-width:20px; }
+  .option-btn.correct { border-color:var(--green); background:#f0faf5; }
+  .option-btn.correct .opt-key { color:var(--green); }
+  .option-btn.wrong { border-color:var(--accent); background:#fff5f5; }
+  .option-btn.wrong .opt-key { color:var(--accent); }
+  .option-btn:disabled { cursor:default; }
+  .feedback { margin-top:12px; padding:12px 16px; border-radius:6px; font-size:0.88rem; line-height:1.7; display:none; }
+  .feedback.show { display:block; }
+  .feedback.ok { background:#f0faf5; color:#1d7a45; border-left:4px solid var(--green); }
+  .feedback.no { background:#fff5f5; color:#9b2335; border-left:4px solid var(--accent); }
+  .completion { text-align:center; padding:32px; border:2px solid var(--green); border-radius:8px; background:#f0faf5; display:none; margin-top:28px; }
+  .completion.show { display:block; }
+  .completion .done-icon { font-size:2.5rem; margin-bottom:12px; }
+  .completion h3 { font-family:'Noto Serif TC',serif; font-size:1.2rem; color:#1d7a45; margin-bottom:8px; }
+  .completion p { font-size:0.88rem; color:var(--muted); }
+  .back-link { display:inline-block; margin-bottom:24px; font-size:0.85rem; color:var(--accent2); text-decoration:none; }
+  .back-link:hover { text-decoration:underline; }
+  @media(max-width:560px){ .special-grid{grid-template-columns:1fr;} .interaction-zone{padding:24px 20px;} }
+</style>
+</head>
+<body>
+<div id="progress-bar"></div>
+<div class="page-wrap">
+  <a href="index.html" class="back-link section visible">← 回學習首頁</a>
+
+  <header class="hero section" id="s0">
+    <div class="label">高中數學 · 線性代數 03</div>
+    <h1>旋轉矩陣</h1>
+    <p class="subtitle">請仔細閱讀以下內容，試著理解每個概念再繼續往下。</p>
+  </header>
+
+  <!-- Section 01 -->
+  <div class="section" id="s1">
+    <div class="section-label">Section 01</div>
+    <h2>從時鐘的指針說起</h2>
+    <p>時鐘上的分針，每隔一段時間就會旋轉一個角度。12 點時指針指向正上方，轉 90° 後指向 3 點方向，再轉 90° 指向 6 點……這種「以原點為中心旋轉」的動作，正是旋轉矩陣在做的事。</p>
+
+    <div class="scenario-card">
+      <div class="tag">情境設定</div>
+      <p>把時鐘放在坐標平面上，原點在中心。分針的尖端是一個點，我們來追蹤它的位置：</p>
+      <ul style="margin:12px 0 0 20px; line-height:2.4;">
+        <li>12 點：分針指向 (0, 1) — 正上方</li>
+        <li>逆時針旋轉 <strong>90°</strong>：到達 (−1, 0) — 9 點方向</li>
+        <li>逆時針旋轉 <strong>180°</strong>：到達 (0, −1) — 6 點方向</li>
+        <li>逆時針旋轉 <strong>270°</strong>：到達 (1, 0) — 3 點方向</li>
+      </ul>
+    </div>
+
+    <div class="clock-visual">
+      <div class="clock-wrap">
+        <svg width="130" height="130" viewBox="-65 -65 130 130">
+          <circle cx="0" cy="0" r="60" fill="white" stroke="#d8cfc0" stroke-width="2"/>
+          <text x="0" y="-38" text-anchor="middle" font-size="11" fill="#888">12</text>
+          <text x="42" y="5" text-anchor="middle" font-size="11" fill="#888">3</text>
+          <text x="0" y="50" text-anchor="middle" font-size="11" fill="#888">6</text>
+          <text x="-42" y="5" text-anchor="middle" font-size="11" fill="#888">9</text>
+          <line x1="0" y1="0" x2="0" y2="-48" stroke="#2980b9" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="0" cy="0" r="4" fill="#1a1a2e"/>
+          <circle cx="0" cy="-48" r="5" fill="#2980b9"/>
+          <text x="8" y="-50" font-size="9" fill="#2980b9">(0,1)</text>
+        </svg>
+        <div class="clock-label">初始 (0°)</div>
+      </div>
+      <div class="clock-wrap">
+        <svg width="130" height="130" viewBox="-65 -65 130 130">
+          <circle cx="0" cy="0" r="60" fill="white" stroke="#d8cfc0" stroke-width="2"/>
+          <text x="0" y="-38" text-anchor="middle" font-size="11" fill="#888">12</text>
+          <text x="42" y="5" text-anchor="middle" font-size="11" fill="#888">3</text>
+          <text x="0" y="50" text-anchor="middle" font-size="11" fill="#888">6</text>
+          <text x="-42" y="5" text-anchor="middle" font-size="11" fill="#888">9</text>
+          <path d="M 0 -40 A 40 40 0 0 0 -40 0" fill="none" stroke="#d4a017" stroke-width="1.5" stroke-dasharray="4,3"/>
+          <line x1="0" y1="0" x2="-48" y2="0" stroke="#c0392b" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="0" cy="0" r="4" fill="#1a1a2e"/>
+          <circle cx="-48" cy="0" r="5" fill="#c0392b"/>
+          <text x="-62" y="-6" font-size="9" fill="#c0392b">(−1,0)</text>
+        </svg>
+        <div class="clock-label">旋轉 90°</div>
+      </div>
+      <div class="clock-wrap">
+        <svg width="130" height="130" viewBox="-65 -65 130 130">
+          <circle cx="0" cy="0" r="60" fill="white" stroke="#d8cfc0" stroke-width="2"/>
+          <text x="0" y="-38" text-anchor="middle" font-size="11" fill="#888">12</text>
+          <text x="42" y="5" text-anchor="middle" font-size="11" fill="#888">3</text>
+          <text x="0" y="50" text-anchor="middle" font-size="11" fill="#888">6</text>
+          <text x="-42" y="5" text-anchor="middle" font-size="11" fill="#888">9</text>
+          <path d="M 0 -40 A 40 40 0 1 0 0 40" fill="none" stroke="#d4a017" stroke-width="1.5" stroke-dasharray="4,3"/>
+          <line x1="0" y1="0" x2="0" y2="48" stroke="#27ae60" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="0" cy="0" r="4" fill="#1a1a2e"/>
+          <circle cx="0" cy="48" r="5" fill="#27ae60"/>
+          <text x="8" y="56" font-size="9" fill="#27ae60">(0,−1)</text>
+        </svg>
+        <div class="clock-label">旋轉 180°</div>
+      </div>
+    </div>
+    <p>每次旋轉都有一個對應的矩陣——這就是<strong>旋轉矩陣</strong>，用三角函數 cosθ 和 sinθ 來描述旋轉的角度。</p>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Section 02 -->
+  <div class="section" id="s2">
+    <div class="section-label">Section 02</div>
+    <h2>旋轉矩陣的樣子</h2>
+    <p>逆時針旋轉角度 θ 的旋轉矩陣，長這樣：</p>
+
+    <div class="matrix-reveal">
+      <div class="matrix-title">旋轉矩陣 R<sub>θ</sub>（逆時針旋轉 θ 角）</div>
+      <div style="display:flex; justify-content:center;">
+        <div>
+          <div style="display:flex; margin-bottom:4px;">
+            <div style="width:90px;"></div>
+            <div style="width:16px;"></div>
+            <div style="width:100px; text-align:center; font-size:0.76rem; color:var(--accent2); font-weight:600;">第一欄</div>
+            <div style="width:100px; text-align:center; font-size:0.76rem; color:var(--accent2); font-weight:600;">第二欄</div>
+          </div>
+          <div style="display:flex; align-items:stretch;">
+            <div style="width:90px; display:flex; flex-direction:column; justify-content:space-around; padding-right:8px; text-align:right;">
+              <div style="height:52px; display:flex; align-items:center; justify-content:flex-end; font-size:0.76rem; color:var(--accent); font-weight:600;">第一列</div>
+              <div style="height:52px; display:flex; align-items:center; justify-content:flex-end; font-size:0.76rem; color:var(--accent); font-weight:600;">第二列</div>
+            </div>
+            <div style="font-family:'JetBrains Mono'; font-size:4.2rem; font-weight:200; color:#aaa; display:flex; align-items:center; padding:0 2px;">[</div>
+            <div style="display:grid; grid-template-columns:100px 100px; grid-template-rows:52px 52px;">
+              <div class="mx-cell" style="background:#f0f7ff; font-size:0.95rem;">cosθ<span class="cell-tip">x 軸分量保留 cosθ 倍</span></div>
+              <div class="mx-cell" style="font-size:0.95rem;">−sinθ<span class="cell-tip">y 軸旋轉後對 x 的貢獻</span></div>
+              <div class="mx-cell" style="font-size:0.95rem;">sinθ<span class="cell-tip">x 軸旋轉後對 y 的貢獻</span></div>
+              <div class="mx-cell" style="background:#f5fff8; font-size:0.95rem;">cosθ<span class="cell-tip">y 軸分量保留 cosθ 倍</span></div>
+            </div>
+            <div style="font-family:'JetBrains Mono'; font-size:4.2rem; font-weight:200; color:#aaa; display:flex; align-items:center; padding:0 2px;">]</div>
+          </div>
+        </div>
+      </div>
+      <div class="matrix-note">
+        ✦ 對角線都是 cosθ &nbsp;|&nbsp; 左下是 sinθ，右上是 −sinθ<br>
+        ✦ 滑鼠移到格子上查看含義
+      </div>
+    </div>
+
+    <p>舉個例子：旋轉 90° 時，cos90° = 0，sin90° = 1，代入得：</p>
+    <div style="text-align:center; margin:16px 0; font-family:'JetBrains Mono'; font-size:1rem;">
+      R<sub>90°</sub> = [[0, −1], [1, 0]]
+    </div>
+    <p>把點 (1, 0) 代入：[[0,−1],[1,0]] × [1,0] = [0, 1]，也就是 (0, 1)——從 3 點鐘轉到 12 點鐘，完全正確！</p>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Section 03 -->
+  <div class="section" id="s3">
+    <div class="section-label">Section 03</div>
+    <h2>常見角度的旋轉矩陣</h2>
+
+    <div class="special-grid">
+      <div class="special-card">
+        <div class="s-angle">θ = 90°</div>
+        <div class="s-matrix">[ 0 &nbsp; −1 ]<br>[ 1 &nbsp;&nbsp;&nbsp; 0 ]</div>
+        <div class="s-effect">(1,0) → (0,1)<br>3點 → 12點</div>
+      </div>
+      <div class="special-card">
+        <div class="s-angle">θ = 180°</div>
+        <div class="s-matrix">[ −1 &nbsp; 0 ]<br>[ &nbsp;0 &nbsp;−1 ]</div>
+        <div class="s-effect">(1,0) → (−1,0)<br>3點 → 9點</div>
+      </div>
+      <div class="special-card">
+        <div class="s-angle">θ = 270°</div>
+        <div class="s-matrix">[ 0 &nbsp;&nbsp;&nbsp; 1 ]<br>[ −1 &nbsp; 0 ]</div>
+        <div class="s-effect">(1,0) → (0,−1)<br>3點 → 6點</div>
+      </div>
+    </div>
+
+    <div class="definition-box">
+      <div class="def-title">旋轉矩陣的重要性質</div>
+      <p><strong>旋轉不改變面積：</strong> <span class="math">det(R<sub>θ</sub>) = cos²θ + sin²θ = 1</span>，面積比永遠是 1。</p>
+      <p style="margin-top:12px;"><strong>旋轉可以疊加：</strong> <span class="math">R<sub>α</sub> × R<sub>β</sub> = R<sub>α+β</sub></span>，先轉 α 再轉 β，等於直接轉 α+β。</p>
+      <p style="margin-top:12px;"><strong>旋轉的逆矩陣：</strong> <span class="math">R<sub>θ</sub><sup>−1</sup> = R<sub>−θ</sub></span>，逆時針轉 θ 的反操作，就是順時針轉 θ。</p>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Section 04 白話文 -->
+  <div class="section" id="s4">
+    <div class="section-label">Section 04</div>
+    <h2>白話文結語</h2>
+    <div class="plain-summary">
+      <div class="plain-tag">🗣️ 用人話說一遍</div>
+      <h3>旋轉矩陣，就是一張「轉幾度的規則表」。</h3>
+      <p>時鐘的指針繞著圓心轉，坐標平面上的點也可以繞著原點轉。旋轉矩陣就是把這個「轉幾度」的動作，包裝成矩陣乘法。</p>
+      <p>只要記住矩陣長這樣：左上右下是 cosθ，左下是 sinθ，右上是 −sinθ。把點的坐標乘上去，就得到旋轉後的新坐標。</p>
+      <div class="highlight-line">
+        旋轉最美的地方：旋轉不會改變形狀、不會改變面積，只是換了方向。det = 1，代表它是「最純粹」的變換。
+      </div>
+      <p>而且兩次旋轉可以合併——先轉 30° 再轉 60°，跟直接轉 90° 一樣。這讓旋轉矩陣在動畫、機器人、3D 繪圖裡都超級好用。</p>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- 選擇題 -->
+  <div class="interaction-zone section" id="s5">
+    <div class="zone-header">
+      <div class="zone-icon">✏️</div>
+      <div>
+        <div class="zone-title">理解確認</div>
+        <div class="zone-sub">做完這三題，確認你真的讀懂了</div>
+      </div>
+    </div>
+
+    <!-- Q1 -->
+    <div class="question-block">
+      <div class="q-label">選擇題 01</div>
+      <div class="q-text">逆時針旋轉 <u>90°</u> 的旋轉矩陣是哪一個？（cos90° = 0，sin90° = 1）</div>
+      <div class="options" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <button class="option-btn" onclick="answer(1,'A')" data-q="1" data-v="A" style="flex-direction:column; align-items:flex-start; gap:8px;">
+          <span class="opt-key" style="font-size:0.85rem;">選項 A</span>
+          <div style="display:flex; align-items:center; font-family:'JetBrains Mono'; font-size:0.95rem; gap:2px;">
+            <span style="font-size:2.2rem; font-weight:200; color:#aaa;">[</span>
+            <div style="display:grid; grid-template-columns:44px 44px; grid-template-rows:36px 36px; gap:2px;">
+              <div style="display:flex;align-items:center;justify-content:center;background:#f0f7ff;border-radius:3px;">1</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f0f7ff;border-radius:3px;">1</div>
+            </div>
+            <span style="font-size:2.2rem; font-weight:200; color:#aaa;">]</span>
+          </div>
+        </button>
+        <button class="option-btn" onclick="answer(1,'B')" data-q="1" data-v="B" style="flex-direction:column; align-items:flex-start; gap:8px;">
+          <span class="opt-key" style="font-size:0.85rem;">選項 B</span>
+          <div style="display:flex; align-items:center; font-family:'JetBrains Mono'; font-size:0.95rem; gap:2px;">
+            <span style="font-size:2.2rem; font-weight:200; color:#aaa;">[</span>
+            <div style="display:grid; grid-template-columns:44px 44px; grid-template-rows:36px 36px; gap:2px;">
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#fff5f5;border-radius:3px;">−1</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f0f7ff;border-radius:3px;">1</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0</div>
+            </div>
+            <span style="font-size:2.2rem; font-weight:200; color:#aaa;">]</span>
+          </div>
+        </button>
+        <button class="option-btn" onclick="answer(1,'C')" data-q="1" data-v="C" style="flex-direction:column; align-items:flex-start; gap:8px;">
+          <span class="opt-key" style="font-size:0.85rem;">選項 C</span>
+          <div style="display:flex; align-items:center; font-family:'JetBrains Mono'; font-size:0.95rem; gap:2px;">
+            <span style="font-size:2.2rem; font-weight:200; color:#aaa;">[</span>
+            <div style="display:grid; grid-template-columns:44px 44px; grid-template-rows:36px 36px; gap:2px;">
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f0f7ff;border-radius:3px;">1</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#fff5f5;border-radius:3px;">−1</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0</div>
+            </div>
+            <span style="font-size:2.2rem; font-weight:200; color:#aaa;">]</span>
+          </div>
+        </button>
+        <button class="option-btn" onclick="answer(1,'D')" data-q="1" data-v="D" style="flex-direction:column; align-items:flex-start; gap:8px;">
+          <span class="opt-key" style="font-size:0.85rem;">選項 D</span>
+          <div style="display:flex; align-items:center; font-family:'JetBrains Mono'; font-size:0.95rem; gap:2px;">
+            <span style="font-size:2.2rem; font-weight:200; color:#aaa;">[</span>
+            <div style="display:grid; grid-template-columns:44px 44px; grid-template-rows:36px 36px; gap:2px;">
+              <div style="display:flex;align-items:center;justify-content:center;background:#fff5f5;border-radius:3px;">−1</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:3px;">0</div>
+              <div style="display:flex;align-items:center;justify-content:center;background:#fff5f5;border-radius:3px;">−1</div>
+            </div>
+            <span style="font-size:2.2rem; font-weight:200; color:#aaa;">]</span>
+          </div>
+        </button>
+      </div>
+      <div class="feedback" id="fb1"></div>
+    </div>
+
+    <!-- Q2 -->
+    <div class="question-block">
+      <div class="q-label">選擇題 02</div>
+      <div class="q-text">點 P(1, 0) 逆時針旋轉 180° 後，到達哪個位置？（cos180° = −1，sin180° = 0）</div>
+      <div class="options">
+        <button class="option-btn" onclick="answer(2,'A')" data-q="2" data-v="A"><span class="opt-key">A</span> (0, 1)</button>
+        <button class="option-btn" onclick="answer(2,'B')" data-q="2" data-v="B"><span class="opt-key">B</span> (−1, 0)</button>
+        <button class="option-btn" onclick="answer(2,'C')" data-q="2" data-v="C"><span class="opt-key">C</span> (0, −1)</button>
+        <button class="option-btn" onclick="answer(2,'D')" data-q="2" data-v="D"><span class="opt-key">D</span> (1, 0)（沒有移動）</button>
+      </div>
+      <div class="feedback" id="fb2"></div>
+    </div>
+
+    <!-- Q3 -->
+    <div class="question-block">
+      <div class="q-label">選擇題 03</div>
+      <div class="q-text">旋轉矩陣的行列式 det(R<sub>θ</sub>) = 1，這代表什麼？</div>
+      <div class="options">
+        <button class="option-btn" onclick="answer(3,'A')" data-q="3" data-v="A"><span class="opt-key">A</span> 旋轉後，每個點的坐標都加 1</button>
+        <button class="option-btn" onclick="answer(3,'B')" data-q="3" data-v="B"><span class="opt-key">B</span> 旋轉後，圖形面積不變</button>
+        <button class="option-btn" onclick="answer(3,'C')" data-q="3" data-v="C"><span class="opt-key">C</span> 只能旋轉 1 度</button>
+        <button class="option-btn" onclick="answer(3,'D')" data-q="3" data-v="D"><span class="opt-key">D</span> 旋轉只對邊長為 1 的正方形有效</button>
+      </div>
+      <div class="feedback" id="fb3"></div>
+    </div>
+
+    <div class="completion" id="completion">
+      <div class="done-icon">🎉</div>
+      <h3>太棒了，三個單元全部完成！</h3>
+      <p>轉移矩陣、鏡射矩陣、旋轉矩陣——你已經掌握了矩陣應用的三大核心！<br>回到學習首頁查看你的完成紀錄。</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://erabqvmiffpecaizmchh.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_3Ytw_g_yk-AbX4GWOU9DEw_YXM8x2z3';
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+const urlParams = new URLSearchParams(window.location.search);
+let currentUserId = urlParams.get('uid') || null;
+async function initUser() {
+  if (!currentUserId) {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) currentUserId = session.user.id;
+    else window.location.href = 'index.html';
+  }
+}
+initUser();
+
+window.addEventListener('scroll', () => {
+  const h = document.documentElement;
+  document.getElementById('progress-bar').style.width = (h.scrollTop / (h.scrollHeight - h.clientHeight)) * 100 + '%';
+});
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.08 });
+document.querySelectorAll('.section').forEach(s => observer.observe(s));
+
+const correctAnswers = { 1: 'B', 2: 'B', 3: 'B' };
+const userAnswers = { 1: null, 2: null, 3: null };
+const feedbacks = {
+  1: {
+    B: '✓ 答對了！代入 cos90°=0，sin90°=1，得到 [[0,−1],[1,0]]。左上右下是 cosθ=0，左下是 sinθ=1，右上是 −sinθ=−1。',
+    wrong: '× 提示：把 cos90°=0 和 sin90°=1 代入公式 [[cosθ, −sinθ],[sinθ, cosθ]]，算算看應該是哪一個？'
+  },
+  2: {
+    B: '✓ 答對了！R₁₈₀° = [[−1,0],[0,−1]]，乘上 [1,0] 得 [−1, 0]，也就是 (−1,0)。就像時鐘從 3 點轉到 9 點！',
+    wrong: '× 提示：把 cos180°=−1，sin180°=0 代入旋轉矩陣，得到 [[−1,0],[0,−1]]，再乘上 [1,0]，算算看結果是？'
+  },
+  3: {
+    B: '✓ 答對了！行列式代表面積的縮放比例。det = 1 表示面積比是 1，也就是旋轉前後面積完全不變。形狀和大小都保留，只是方向改變了。',
+    wrong: '× 提示：在線性變換中，行列式的絕對值代表「面積被縮放了幾倍」。det = 1 代表縮放倍數是 1，意思是……？'
+  }
+};
+const answered = { 1: false, 2: false, 3: false };
+
+function answer(q, v) {
+  if (answered[q]) return;
+  answered[q] = true;
+  userAnswers[q] = v;
+  const btns = document.querySelectorAll(`[data-q="${q}"]`);
+  btns.forEach(b => {
+    b.disabled = true;
+    if (b.dataset.v === correctAnswers[q]) b.classList.add('correct');
+    else if (b.dataset.v === v) b.classList.add('wrong');
+  });
+  const fb = document.getElementById('fb' + q);
+  const isRight = v === correctAnswers[q];
+  fb.textContent = isRight ? feedbacks[q][v] : feedbacks[q].wrong;
+  fb.className = 'feedback show ' + (isRight ? 'ok' : 'no');
+  checkCompletion();
+}
+async function checkCompletion() {
+  if (!Object.values(answered).every(Boolean)) return;
+  document.getElementById('completion').classList.add('show');
+  const score = [1,2,3].filter(q => userAnswers[q] === correctAnswers[q]).length;
+  if (currentUserId) {
+    await sb.from('answers').upsert({ user_id: currentUserId, topic: 'rotation-matrix', q1: userAnswers[1], q2: userAnswers[2], q3: userAnswers[3], score }, { onConflict: 'user_id,topic' });
+  }
+}
+</script>
+</body>
+</html>
